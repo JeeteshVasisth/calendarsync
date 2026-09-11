@@ -13,6 +13,8 @@
 const state = {
   events: [], // Events for the currently active day
   eventsByDay: { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, // SUN=0 ... SAT=6
+  targetDateByDay: { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
+  dateTextByDay: { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
   targetDate: '',
   detectedDateText: '',
   activeDayIndex: -1, // -1 = no day selected yet
@@ -429,7 +431,6 @@ function dayNameToIndex(dateText) {
   for (let i = 0; i < days.length; i++) {
     if (lower.includes(days[i])) return i;
   }
-  // Also try parsing targetDate
   return -1;
 }
 
@@ -437,6 +438,13 @@ function dayNameToIndex(dateText) {
 function setActiveDay(dayIdx) {
   state.activeDayIndex = dayIdx;
   state.events = state.eventsByDay[dayIdx] || [];
+  if (state.targetDateByDay[dayIdx]) {
+    state.targetDate = state.targetDateByDay[dayIdx];
+    eventDateInput.value = state.targetDate;
+  }
+  if (state.dateTextByDay[dayIdx]) {
+    state.detectedDateText = state.dateTextByDay[dayIdx];
+  }
 
   // Update day button styles
   document.querySelectorAll('.day-btn').forEach(b => {
@@ -531,6 +539,8 @@ async function processImage(imageSrc) {
 
       if (detectedDay !== -1) {
         state.eventsByDay[detectedDay] = parsedEvents;
+        if (result.targetDate) state.targetDateByDay[detectedDay] = result.targetDate;
+        if (result.dateText) state.dateTextByDay[detectedDay] = result.dateText;
       }
       if (result.targetDate) {
         state.targetDate = result.targetDate;
@@ -646,8 +656,12 @@ function renderEvents() {
   statusBoxIcon.textContent = '⬢';
   heroStatusTitle.className = 'text-sm sm:text-base font-extrabold text-emerald-900 font-tactical tracking-wider uppercase';
   heroStatusTitle.textContent = `CLASSCON 1: ARMED (${selectedCount} OF ${count} ACTIVE)`;
+  const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+  const dayNameShort = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  const activeDayName = state.activeDayIndex >= 0 ? dayNames[state.activeDayIndex] : '';
+
   heroDateBadge.className = 'text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold';
-  heroDateBadge.textContent = 'MON, AUG 31';
+  heroDateBadge.textContent = state.detectedDateText ? state.detectedDateText.toUpperCase() : (activeDayName || 'SCHEDULE LOADED');
   heroStatusSubtitle.textContent = `TIMETABLE PARSED &bull; ${count} LECTURES READY FOR GOOGLE CALENDAR PRIMARY SYNC`;
   topStatusPill.className = 'px-2.5 py-0.5 rounded border border-emerald-600 bg-emerald-50 text-emerald-900 font-bold flex items-center space-x-1.5';
   topStatusPillText.textContent = 'STATUS: ARMED';
@@ -672,6 +686,7 @@ function renderEvents() {
     const gcalWebLink = generateGoogleCalendarWebUrl(event);
     const startParsed = parseTimeString(event.startTime);
     const histogramHtml = generateHistogramBarsHtml(startParsed.hours);
+    const cardDayLabel = activeDayName || 'SCHEDULED';
 
     card.innerHTML = `
       <!-- Card Top Header (Title + Utility Buttons) -->
@@ -731,13 +746,13 @@ function renderEvents() {
         </div>
       </div>
 
-      <!-- Bottom Row: Time slot & Recurrence -->
+      <!-- Bottom Row: Time slot & Day of the class -->
       <div class="pt-1 border-t border-[#ded6c5] flex items-center justify-between text-[10px] font-mono text-stone-600">
         <div class="flex items-center space-x-1">
           <i data-lucide="clock" class="w-3 h-3 text-terracotta-600"></i>
           <span class="text-stone-900 font-bold">${escapeHtml(event.startTime)} - ${escapeHtml(event.endTime)}</span>
         </div>
-        <span class="text-stone-500 text-[9px]">MONDAYS (RRULE:WEEKLY)</span>
+        <span class="text-stone-600 font-bold text-[10px] tracking-wide uppercase">${escapeHtml(cardDayLabel)}</span>
       </div>
     `;
 
