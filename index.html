@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-[#f4f0e6]">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flame Calendar Index | Student Schedule Intelligence</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            beige: {
+              50: '#fdfcf9',
+              100: '#f7f4ed',
+              200: '#ede8df',
+              300: '#ded6c5',
+              400: '#b8ac96',
+              500: '#8c7d67',
+              800: '#3d362c',
+              900: '#1c1917'
+            },
+            terracotta: {
+              500: '#ea580c',
+              600: '#c2410c',
+              700: '#9a3412'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Google Identity Services (GIS) library for Google Calendar API OAuth -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Tesseract.js CDN for in-browser OCR fallback -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="min-h-full flex flex-col bg-[#f4f0e6] text-[#1c1917] antialiased selection:bg-amber-200 selection:text-stone-900">
+
+  <!-- 1. Topmost Status Bar (Warm Beige & Charcoal Ink) -->
+  <div class="bg-[#ebe4d5] border-b border-[#ded6c5] text-[11px] text-stone-600 py-1.5 px-4 font-mono">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <!-- Left metadata indicators -->
+      <div class="flex items-center space-x-3 sm:space-x-5 text-[10px]">
+        <div class="flex items-center space-x-1.5 text-stone-800 font-bold">
+          <span>🇮🇳 EN</span>
+        </div>
+        <div class="flex items-center space-x-1.5 text-stone-700">
+          <i data-lucide="clock" class="w-3 h-3 text-terracotta-600"></i>
+          <span id="liveClock" class="font-bold text-stone-900">2026-09-09 16:01:00 UTC</span>
+        </div>
+        <div class="hidden md:flex items-center space-x-1.5">
+          <span class="text-stone-500">CAMPUS:</span>
+          <span class="text-stone-900 font-semibold">PUNE LAVALE</span>
+        </div>
+        <div class="hidden sm:flex items-center space-x-1.5">
+          <span id="statusIndicatorDot" class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+          <span class="text-stone-500">LOCATIONS:</span>
+          <span class="text-stone-900 font-bold" id="topLocationCounter">0 MONITORED</span>
+        </div>
+      </div>
+
+      <!-- Right utility pills -->
+      <div class="flex items-center space-x-2 text-[10px]">
+
+        <button id="btnOpenHelp" type="button" class="px-2.5 py-0.5 rounded border border-[#ded6c5] bg-[#fdfbf7] hover:bg-[#f2ece0] text-stone-700 transition">
+          GUIDE
+        </button>
+        <div id="topStatusPill" class="px-2.5 py-0.5 rounded border border-amber-400 bg-amber-50 text-amber-800 font-bold flex items-center space-x-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-500 warm-pulse"></span>
+          <span id="topStatusPillText">STATUS: STANDBY</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Dashboard Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 space-y-4">
+
+    <!-- 2. Hero Section (Title, Status Box, Briefing Feed) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+      
+      <!-- Left: Title & Status Box (7 cols) -->
+      <div class="lg:col-span-7 flex flex-col justify-between space-y-3">
+        
+        <!-- Header Title Block -->
+        <div class="flex items-start space-x-3.5">
+          <!-- Pizza/Flame Stamp Badge -->
+          <div class="w-12 h-12 rounded-xl bg-[#fdfbf7] border-2 border-terracotta-600 flex items-center justify-center text-terracotta-600 shadow-sm shrink-0 mt-0.5">
+            <span class="text-2xl">🍕</span>
+          </div>
+          <div>
+            <h1 class="text-2xl sm:text-3xl font-extrabold tracking-wide text-stone-900 font-tactical uppercase">
+              FLAME CALENDAR INDEX
+            </h1>
+            <p class="text-xs text-stone-600 font-mono flex items-center space-x-2 mt-0.5">
+              <span>Timetable by the Slice</span>
+              <span class="text-stone-400">|</span>
+              <span>Powered by</span>
+              <span class="px-1.5 py-0.2 rounded bg-[#ebe4d5] text-stone-800 font-bold border border-[#d6cdbc] text-[10px]">Google Calendar API</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Dynamic Status Box (Standby for New Users, Green Armed when loaded) -->
+        <div id="mainStatusBox" class="status-box-standby rounded-xl p-3.5 sm:p-4 flex items-center justify-between relative overflow-hidden transition-all">
+          <div class="flex items-center space-x-3.5 z-10">
+            <div id="statusBoxIcon" class="w-10 h-10 rounded-lg bg-amber-100 border border-amber-400 flex items-center justify-center text-amber-700 shrink-0 text-xl font-bold">
+              ⬡
+            </div>
+            <div>
+              <div class="flex items-center space-x-2">
+                <span id="heroStatusTitle" class="text-sm sm:text-base font-extrabold text-amber-900 font-tactical tracking-wider uppercase">
+                  RADAR STATUS: STANDBY
+                </span>
+                <span id="heroDateBadge" class="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300 font-bold">
+                  AWAITING UPLOAD
+                </span>
+              </div>
+              <p id="heroStatusSubtitle" class="text-xs text-stone-600 font-mono mt-0.5">
+                Drop your Flame timetable screenshot below or press Ctrl+V to engage OCR radar.
+              </p>
+            </div>
+          </div>
+          
+          <button id="btnToggleHelpHero" title="Instructions" class="text-stone-400 hover:text-stone-700 p-1 z-10">
+            <i data-lucide="info" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Right: Timetable Intel Feed (5 cols) -->
+      <div class="lg:col-span-5 beige-card rounded-xl p-3 flex flex-col justify-between space-y-2">
+        <div class="flex items-center justify-between text-[10px] font-mono text-stone-500 border-b border-[#ded6c5] pb-1.5">
+          <div class="flex items-center space-x-2 text-stone-800 font-bold">
+            <span class="w-1.5 h-1.5 rounded-full bg-terracotta-600 warm-pulse"></span>
+            <span>TIMETABLE FEED &bull; LIVE</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span id="intelStatusPill" class="text-[9px] uppercase px-1.5 py-0.5 rounded bg-[#ede8df] text-stone-700 font-bold border border-[#d8cfbe]">IDLE</span>
+            <span id="intelCountNotice" class="text-stone-500">0 DETECTIONS</span>
+          </div>
+        </div>
+
+        <!-- 2 Mini Feed Cards in Warm Beige -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px] font-mono">
+          <!-- Feed Card 1 -->
+          <div class="bg-[#f5f2eb] rounded-lg p-2 border border-[#ded6c5] space-y-1">
+            <div class="flex items-center justify-between text-stone-500">
+              <span class="text-stone-900 font-bold">@flame_ocr</span>
+              <span class="text-stone-400 text-[9px]">Active</span>
+            </div>
+            <p id="feedOcrText" class="text-stone-700 leading-tight text-[10px]">
+              OCR parser initialized. Awaiting user timetable screenshot.
+            </p>
+            <div class="flex items-center justify-between pt-1 border-t border-[#ded6c5] text-[9px]">
+              <span class="text-terracotta-600 font-bold flex items-center space-x-1">
+                <span class="w-1 h-1 rounded-full bg-terracotta-600"></span>
+                <span>READY</span>
+              </span>
+              <span class="text-stone-500">CLIENT-SIDE</span>
+            </div>
+          </div>
+
+          <!-- Feed Card 2 -->
+          <div class="bg-[#f5f2eb] rounded-lg p-2 border border-[#ded6c5] space-y-1">
+            <div class="flex items-center justify-between text-stone-500">
+              <span class="text-stone-900 font-bold">@gcal_sync</span>
+              <span class="text-stone-400 text-[9px]">OAuth 2.0</span>
+            </div>
+            <p class="text-stone-700 leading-tight text-[10px]">
+              Google OAuth client registered. Primary calendar integration armed.
+            </p>
+            <div class="flex items-center justify-between pt-1 border-t border-[#ded6c5] text-[9px]">
+              <span class="text-emerald-700 font-bold flex items-center space-x-1">
+                <span class="w-1 h-1 rounded-full bg-emerald-600"></span>
+                <span>CONNECTED</span>
+              </span>
+              <span class="text-stone-500">API v3</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 3. Breaking Ticker Bar (Warm Beige & Red Stamp) -->
+    <div class="beige-card rounded-lg px-3 py-1.5 flex items-center space-x-3 text-xs font-mono overflow-hidden">
+      <div class="px-2 py-0.5 rounded bg-terracotta-500 text-white font-bold text-[10px] shrink-0 uppercase tracking-wide flex items-center space-x-1 shadow-2xs">
+        <span class="w-1.5 h-1.5 rounded-full bg-white warm-pulse"></span>
+        <span>TELEMETRY</span>
+      </div>
+      <div id="breakingTickerText" class="text-[11px] text-stone-700 truncate font-mono">
+        Drop your Flame timetable screenshot or press <kbd class="bg-[#ebe4d5] px-1 rounded border border-[#ded6c5]">Ctrl + V</kbd> to automatically detect lecture hours, professors, and classrooms.
+      </div>
+    </div>
+
+    <!-- 4. Timeline Control Bar & Google Auth Pill -->
+    <div class="beige-card rounded-xl p-2 sm:p-2.5 flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Left icon group buttons -->
+      <div class="flex items-center space-x-1 bg-[#ede8df] p-1 rounded-lg border border-[#ded6c5]">
+        <button id="btnToggleViewGrid" title="Grid View" class="p-1.5 rounded bg-[#fdfbf7] text-stone-900 shadow-2xs transition text-xs">
+          <i data-lucide="layout-grid" class="w-4 h-4"></i>
+        </button>
+        <button id="btnToggleSplitView" title="Split View (Show Screenshot)" class="p-1.5 rounded text-stone-500 hover:text-stone-900 hover:bg-[#fdfbf7] transition text-xs">
+          <i data-lucide="split-square-vertical" class="w-4 h-4"></i>
+        </button>
+        <button id="btnAddManualEvent" title="Add Lecture Slot" class="p-1.5 rounded text-stone-500 hover:text-stone-900 hover:bg-[#fdfbf7] transition text-xs">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+        </button>
+        <button id="btnUploadTrigger" title="Upload Timetable Screenshot" class="p-1.5 rounded text-stone-500 hover:text-stone-900 hover:bg-[#fdfbf7] transition text-xs">
+          <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Center Day / Timeline Selector -->
+      <div class="flex items-center space-x-1 sm:space-x-1.5 text-xs font-mono">
+        <span class="text-[10px] text-stone-500 font-bold hidden sm:inline uppercase mr-1">TIMELINE:</span>
+        <button data-day="0" class="day-btn px-2.5 py-1 rounded border border-[#ded6c5] bg-[#fdfbf7] text-stone-600 hover:text-stone-900 text-[11px] font-bold transition">SUN</button>
+        <button data-day="1" class="day-btn active-day px-2.5 py-1 rounded border border-terracotta-600 bg-terracotta-600 text-white text-[11px] font-bold shadow-xs transition">MON</button>
+        <button data-day="2" class="day-btn px-2.5 py-1 rounded border border-[#ded6c5] bg-[#fdfbf7] text-stone-600 hover:text-stone-900 text-[11px] font-bold transition">TUE</button>
+        <button data-day="3" class="day-btn px-2.5 py-1 rounded border border-[#ded6c5] bg-[#fdfbf7] text-stone-600 hover:text-stone-900 text-[11px] font-bold transition">WED</button>
+        <button data-day="4" class="day-btn px-2.5 py-1 rounded border border-[#ded6c5] bg-[#fdfbf7] text-stone-600 hover:text-stone-900 text-[11px] font-bold transition">THU</button>
+        <button data-day="5" class="day-btn px-2.5 py-1 rounded border border-[#ded6c5] bg-[#fdfbf7] text-stone-600 hover:text-stone-900 text-[11px] font-bold transition">FRI</button>
+        <button data-day="6" class="day-btn px-2.5 py-1 rounded border border-[#ded6c5] bg-[#fdfbf7] text-stone-600 hover:text-stone-900 text-[11px] font-bold transition">SAT</button>
+        
+        <div class="px-2 py-1 rounded border border-emerald-300 bg-emerald-50 text-emerald-800 text-[11px] font-bold flex items-center space-x-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-600 warm-pulse"></span>
+          <span>LIVE</span>
+        </div>
+      </div>
+
+      <!-- Right Google Sign In Button -->
+      <div class="flex items-center space-x-2">
+        <button id="btnGoogleSignIn" type="button" class="inline-flex items-center space-x-2 px-3 py-1.5 text-xs font-mono font-bold rounded-lg text-stone-800 bg-[#fdfbf7] border border-[#ded6c5] hover:border-stone-400 hover:bg-white transition shadow-xs">
+          <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          <span id="googleBtnLabel">SIGN IN WITH GOOGLE</span>
+        </button>
+
+        <div id="userProfileBadge" class="hidden flex items-center space-x-2 bg-[#fdfbf7] border border-emerald-600 pl-1 pr-2.5 py-1 rounded-lg">
+          <img id="userAvatar" src="" alt="Google Profile" class="w-6 h-6 rounded-full border border-emerald-600">
+          <div class="text-left font-mono leading-tight">
+            <p id="userName" class="text-[10px] font-bold text-stone-900 truncate max-w-[90px]">Student</p>
+            <p id="userEmail" class="text-[9px] text-stone-500 truncate max-w-[90px]">user@flame.edu.in</p>
+          </div>
+          <button id="btnSignOut" type="button" title="Sign out" class="text-stone-400 hover:text-red-600 p-0.5 ml-1">
+            <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 5. Tactical Scanner Dropzone (Warm Beige & Tactile Paper) -->
+    <div id="dropZone" class="beige-card rounded-xl p-4 sm:p-6 text-center border-dashed border-2 border-[#cfc5b2] hover:border-terracotta-600 transition-all cursor-pointer relative group bg-[#fbf9f4]">
+      <input type="file" id="fileInput" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
+        <div class="flex items-center space-x-3.5">
+          <div class="w-12 h-12 rounded-xl bg-[#ede8df] border border-[#ded6c5] flex items-center justify-center text-terracotta-600 shrink-0 group-hover:scale-105 transition-transform">
+            <i data-lucide="scan" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <p class="text-xs font-bold text-stone-900 font-mono uppercase tracking-wide">
+              DROP FLAME TIMETABLE SCREENSHOT HERE OR PRESS <kbd class="px-1.5 py-0.5 rounded bg-[#ebe4d5] text-stone-800 border border-[#d6cdbc] text-[10px]">CTRL + V</kbd>
+            </p>
+            <p class="text-[11px] text-stone-600 font-mono mt-0.5">
+              Takes any calendar screenshot &bull; Extracts course codes, timings, faculty, and room coordinates.
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2 shrink-0">
+          <button type="button" class="px-3.5 py-2 rounded-lg bg-terracotta-600 hover:bg-terracotta-500 text-white font-mono text-xs font-bold transition shadow-xs">
+            SELECT SCREENSHOT
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Processing State -->
+    <div id="processingSection" class="hidden beige-card rounded-xl p-8 text-center max-w-xl mx-auto space-y-3">
+      <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-100 border border-amber-400 text-amber-800 animate-pulse">
+        <i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i>
+      </div>
+      <h3 id="processingTitle" class="text-sm font-bold text-stone-900 font-mono uppercase">Analyzing Timetable Screenshot...</h3>
+      <p id="processingStatus" class="text-xs text-stone-600 font-mono">Recognizing course text, faculty, and classroom coordinates</p>
+      <div class="w-full bg-[#ded6c5] rounded-full h-1.5 overflow-hidden">
+        <div id="processingProgressBar" class="bg-terracotta-600 h-1.5 rounded-full transition-all duration-300" style="width: 25%"></div>
+      </div>
+    </div>
+
+    <!-- Split Screenshot Panel (Optional / Toggleable) -->
+    <div id="splitRadarView" class="hidden beige-card rounded-xl p-3 border border-[#ded6c5]">
+      <div class="flex items-center justify-between border-b border-[#ded6c5] pb-2 mb-2 text-xs font-mono">
+        <span class="text-stone-900 font-bold flex items-center space-x-1.5">
+          <i data-lucide="crosshair" class="w-3.5 h-3.5 text-terracotta-600"></i>
+          <span>RAW TIMETABLE TELEMETRY (SCREENSHOT)</span>
+        </span>
+        <button id="btnCloseSplitView" class="text-stone-500 hover:text-stone-900 p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="max-h-72 overflow-auto bg-[#ede8df] rounded-lg p-2 flex items-center justify-center border border-[#ded6c5]">
+        <img id="previewImage" src="" alt="Screenshot" class="max-h-64 object-contain rounded border border-[#ded6c5]">
+      </div>
+    </div>
+
+    <!-- 6. Grid of 3x2 Tactical Cards (Empty State for New User, Populated when loaded) -->
+    <div>
+      <div class="flex items-center justify-between mb-2 text-xs font-mono px-1">
+        <div class="flex items-center space-x-3">
+          <span class="text-stone-600 uppercase font-bold">DETECTED SCHEDULE LECTURES</span>
+          <span id="detectedCountBadge" class="px-2 py-0.5 rounded bg-[#ede8df] border border-[#d6cdbc] text-stone-800 text-[10px] font-bold">
+            0 CLASSES
+          </span>
+        </div>
+        <div id="selectAllContainer" class="hidden flex items-center space-x-2">
+          <input type="checkbox" id="selectAllCheckbox" checked class="w-3.5 h-3.5 rounded bg-white border-[#cfc5b2] text-terracotta-600 focus:ring-0 cursor-pointer">
+          <label for="selectAllCheckbox" class="text-stone-600 text-[11px] cursor-pointer">SELECT ALL</label>
+        </div>
+      </div>
+
+      <!-- The 3-Column Card Grid Container -->
+      <div id="eventsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+        <!-- Dynamically populated or empty state notice -->
+      </div>
+    </div>
+
+    <!-- 7. Sticky Bottom Command Sync Bar -->
+    <div id="bottomCommandBar" class="hidden sticky bottom-3 z-30 bg-[#fdfbf7]/95 backdrop-blur-md border border-[#ded6c5] rounded-xl p-3 shadow-xl flex flex-wrap items-center justify-between gap-3 font-mono">
+      
+      <!-- Left Config Controls -->
+      <div class="flex flex-wrap items-center gap-3 text-xs">
+        <div class="flex items-center space-x-1.5">
+          <span class="text-stone-600 text-[11px]">DATE:</span>
+          <input type="date" id="eventDateInput" class="bg-[#f5f2eb] border border-[#ded6c5] rounded px-2 py-1 text-stone-900 text-xs font-mono focus:border-terracotta-600 focus:outline-none">
+        </div>
+
+        <div class="flex items-center space-x-1.5">
+          <input type="checkbox" id="repeatWeeklyCheckbox" checked class="w-3.5 h-3.5 rounded bg-white border-[#cfc5b2] text-terracotta-600 focus:ring-0 cursor-pointer">
+          <label for="repeatWeeklyCheckbox" class="text-[11px] text-stone-800 font-bold cursor-pointer">
+            REPEAT WEEKLY (RRULE)
+          </label>
+        </div>
+
+        <div class="flex items-center space-x-1.5" id="semesterEndContainer">
+          <span class="text-stone-600 text-[11px]">UNTIL:</span>
+          <input type="date" id="semesterEndInput" class="bg-[#f5f2eb] border border-[#ded6c5] rounded px-2 py-1 text-stone-900 text-xs font-mono focus:border-terracotta-600 focus:outline-none" title="Semester end date — classes repeat weekly until this date">
+        </div>
+
+        <div class="hidden sm:flex items-center space-x-1.5">
+          <span class="text-stone-600 text-[11px]">ALERT:</span>
+          <select id="reminderSelect" class="bg-[#f5f2eb] border border-[#ded6c5] rounded px-2 py-1 text-stone-900 text-xs font-mono focus:border-terracotta-600 focus:outline-none">
+            <option value="10">10m BEFORE</option>
+            <option value="15">15m BEFORE</option>
+            <option value="30">30m BEFORE</option>
+            <option value="0">AT START</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Right Action Sync Buttons -->
+      <div class="flex items-center space-x-2">
+        <button id="btnDownloadICS" type="button" class="px-3 py-2 rounded-lg bg-[#ede8df] border border-[#ded6c5] hover:bg-[#e4ddce] text-stone-800 text-xs font-mono font-bold transition flex items-center space-x-1.5">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i>
+          <span>EXPORT .ICS</span>
+        </button>
+
+        <button id="btnSyncGoogle" type="button" class="px-5 py-2 rounded-lg bg-terracotta-600 hover:bg-terracotta-500 active:scale-98 text-white font-mono text-xs font-extrabold tracking-wide shadow-md transition flex items-center space-x-2">
+          <i data-lucide="calendar-plus" class="w-4 h-4"></i>
+          <span id="syncButtonText">SYNC TO GOOGLE CALENDAR</span>
+        </button>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Help & Guide Modal -->
+  <div id="helpModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4 font-mono">
+    <div class="beige-card max-w-lg w-full p-5 rounded-2xl border border-[#ded6c5] space-y-4 bg-[#fdfbf7]">
+      <div class="flex items-center justify-between border-b border-[#ded6c5] pb-3">
+        <h3 class="text-sm font-bold text-stone-900 uppercase font-tactical tracking-wider">FLAME RADAR BRIEFING</h3>
+        <button id="btnCloseHelp" class="text-stone-400 hover:text-stone-900 p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="space-y-2.5 text-xs text-stone-700 leading-relaxed">
+        <p>1. <strong>Capture Screenshot:</strong> Open the Flame ERP timetable popup and screenshot it (<kbd class="px-1 bg-[#ede8df] rounded">Win+Shift+S</kbd> or <kbd class="px-1 bg-[#ede8df] rounded">Cmd+Shift+4</kbd>).</p>
+        <p>2. <strong>Drop or Ctrl+V:</strong> Paste anywhere on this page to run the automated OCR scanner.</p>
+        <p>3. <strong>Google OAuth Sync:</strong> Click <strong>SIGN IN WITH GOOGLE</strong> &rarr; select your account &rarr; click <strong>SYNC TO GOOGLE CALENDAR</strong>.</p>
+      </div>
+      <div class="pt-2 border-t border-[#ded6c5] flex justify-end">
+        <button id="btnDismissHelp" class="px-4 py-1.5 rounded-lg bg-stone-900 hover:bg-black text-white font-bold text-xs">
+          ACKNOWLEDGE
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sync Progress Modal -->
+  <div id="syncProgressModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4 font-mono">
+    <div class="beige-card max-w-md w-full p-5 rounded-2xl border border-[#ded6c5] space-y-4 bg-[#fdfbf7]">
+      <div class="flex items-center space-x-3">
+        <div id="syncSpinnerIcon" class="w-10 h-10 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-700">
+          <i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>
+        </div>
+        <div>
+          <h3 id="syncModalTitle" class="text-sm font-bold text-stone-900 font-tactical tracking-wide uppercase">SYNCING TO GOOGLE CALENDAR...</h3>
+          <p id="syncModalSubtitle" class="text-[11px] text-stone-500">Transmitting payload via Google Calendar API</p>
+        </div>
+      </div>
+
+      <div class="w-full bg-[#ede8df] rounded-full h-1.5 overflow-hidden">
+        <div id="syncModalProgressBar" class="bg-terracotta-600 h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+      </div>
+
+      <div id="syncLogContainer" class="max-h-48 overflow-y-auto space-y-1.5 text-[10px] border border-[#ded6c5] rounded-xl p-2.5 bg-[#f5f2eb]">
+      </div>
+
+      <div id="syncCompletedActions" class="hidden pt-3 border-t border-[#ded6c5] flex items-center justify-between">
+        <a id="btnOpenGCalWeb" href="https://calendar.google.com" target="_blank" class="inline-flex items-center space-x-1.5 text-xs font-bold text-terracotta-600 hover:underline">
+          <span>OPEN GOOGLE CALENDAR</span>
+          <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+        </a>
+        <button id="btnCloseSyncModal" type="button" class="px-3.5 py-1.5 text-xs font-bold text-stone-700 bg-[#ede8df] hover:bg-[#e2dacb] rounded-lg">
+          DISMISS
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="mt-auto py-3 border-t border-[#ded6c5] bg-[#ebe4d5] text-[10px] font-mono text-stone-600 text-center">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-1">
+      <p>FLAME CALENDAR INDEX &bull; WARM BEIGE TACTICAL INTERFACE</p>
+      <p>GOOGLE OAUTH 2.0 TOKEN MODEL &bull; 100% PRIVATE IN-BROWSER EXECUTION</p>
+    </div>
+  </footer>
+
+  <script src="app.js?v=8"></script>
+</body>
+</html>

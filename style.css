@@ -1,0 +1,103 @@
+/* Warm Beige / Field Intelligence Theme for Flame Calendar Index */
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,500;0,600;0,700;1,400;1,700&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+
+:root {
+  --bg-main: #f4f0e6;
+  --bg-card: #fdfbf7;
+  --bg-card-alt: #ebe4d5;
+  --border-dim: #ded6c5;
+  --border-strong: #292524;
+  --accent-terracotta: #c2410c;
+  --accent-orange: #ea580c;
+  --accent-green: #15803d;
+  --text-main: #1c1917;
+  --text-dim: #78716c;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: 'JetBrains Mono', monospace;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+.font-tactical {
+  font-family: 'Chakra Petch', sans-serif;
+  letter-spacing: 0.04em;
+}
+
+/* Custom Scrollbars in Warm Beige */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #ede7dc;
+}
+::-webkit-scrollbar-thumb {
+  background: #d3cabd;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #b5a999;
+}
+
+/* Warm Beige Tactical Cards */
+.beige-card {
+  background-color: #fdfbf7;
+  border: 1px solid #ded6c5;
+  box-shadow: 0 2px 10px -2px rgba(41, 37, 36, 0.06);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.beige-card:hover {
+  border-color: #b8ac96;
+  box-shadow: 0 4px 14px -2px rgba(41, 37, 36, 0.1);
+}
+
+/* Status Box - Standby (Warm Amber) & Armed (Forest Green) */
+.status-box-standby {
+  background: #fbf7ee;
+  border: 1px solid #d97706;
+  box-shadow: 0 0 12px rgba(217, 119, 6, 0.1);
+}
+
+.status-box-armed {
+  background: #f2f8f3;
+  border: 1px solid #16a34a;
+  box-shadow: 0 0 12px rgba(22, 163, 74, 0.12);
+}
+
+/* Hourly Activity Bars (Warm Terracotta / Ink) */
+.bar-inactive {
+  background: #e3dcce;
+  height: 18%;
+  transition: height 0.3s ease, background 0.3s ease;
+}
+
+.bar-active {
+  background: #ea580c;
+  box-shadow: 0 0 8px rgba(234, 88, 12, 0.35);
+  transition: height 0.3s ease, background 0.3s ease;
+}
+
+.bar-active-peak {
+  background: #c2410c;
+  box-shadow: 0 0 10px rgba(194, 65, 12, 0.45);
+}
+
+/* Pulse animation */
+@keyframes warmPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.92);
+  }
+}
+
+.warm-pulse {
+  animation: warmPulse 2s infinite ease-in-out;
+}

@@ -1,0 +1,8 @@
+{
+  "name": "flame-calendar-sync",
+  "version": "1.0.0",
+  "description": "Flame University timetable to Google Calendar sync",
+  "engines": {
+    "node": "18"
+  }
+}
