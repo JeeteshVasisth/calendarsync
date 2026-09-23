@@ -45,7 +45,8 @@ exports.handler = async (event) => {
     "events (array of objects each with: courseCode, courseTitle, instructor, startTime (12h e.g. '8:00 AM'), endTime, location). " +
     "Do NOT hallucinate or guess a day or date if it is not clearly written in the screenshot. Return ONLY the JSON object, nothing else.";
 
-  const models = ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-2.5-flash-lite'];
+  // Put responsive models first. gemini-3.5-flash is currently fast and active.
+  const models = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.5-flash-lite'];
   const geminiPayload = {
     contents: [{
       role: "user",
@@ -61,13 +62,23 @@ exports.handler = async (event) => {
   for (const model of models) {
     try {
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      console.log(`[OCR] Calling model: ${model}`);
+      console.log(`[OCR Serverless] Calling model: ${model}`);
 
-      const resp = await fetch(geminiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(geminiPayload)
-      });
+      // Abort each request after 6.5s to fit within Netlify's 10s execution limit
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6500);
+
+      let resp;
+      try {
+        resp = await fetch(geminiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(geminiPayload),
+          signal: controller.signal
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       const geminiResp = await resp.json();
 
@@ -86,6 +97,7 @@ exports.handler = async (event) => {
       text = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
 
       const result = JSON.parse(text);
+      console.log(`[OCR Serverless] Successfully parsed timetable using ${model}`);
 
       return {
         statusCode: 200,
@@ -93,7 +105,7 @@ exports.handler = async (event) => {
         body: JSON.stringify({ status: "ok", result, modelUsed: model })
       };
     } catch (err) {
-      console.warn(`[OCR] Fallback triggered from ${model}:`, err.message);
+      console.warn(`[OCR Serverless] Fallback from ${model}:`, err.message);
       lastError = err;
       // Continue to next model in the fallback array
     }

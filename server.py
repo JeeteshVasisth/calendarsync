@@ -132,7 +132,7 @@ class FlameRequestHandler(http.server.SimpleHTTPRequestHandler):
                         }
                     ]
                 }
-                models = ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-2.5-flash-lite']
+                models = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.5-flash-lite']
                 result = None
                 last_err = None
 
@@ -140,7 +140,7 @@ class FlameRequestHandler(http.server.SimpleHTTPRequestHandler):
                     try:
                         gemini_url = f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}'
                         req = urllib.request.Request(gemini_url, data=json.dumps(gemini_payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
-                        with urllib.request.urlopen(req) as resp:
+                        with urllib.request.urlopen(req, timeout=7) as resp:
                             resp_body = resp.read().decode('utf-8')
                         gemini_resp = json.loads(resp_body)
                         if 'error' in gemini_resp:

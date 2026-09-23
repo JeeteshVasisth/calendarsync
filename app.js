@@ -607,18 +607,30 @@ async function processImage(imageSrc) {
   }
 
   processingProgressBar.style.width = '60%';
-  const payload = { image: b64, mimeType };
-
+  console.log(`[OCR] Sending timetable screenshot to /api/ocr (MIME: ${mimeType}, payload size: ${Math.round(b64.length / 1024)} KB)`);
+  
   try {
     const resp = await fetch('/api/ocr', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const data = await resp.json();
-    console.log('[OCR] Response:', data);
+
+    const responseText = await resp.text();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseErr) {
+      console.error('[OCR] Server returned non-JSON response:', responseText.slice(0, 300));
+      if (resp.status === 504) {
+        throw new Error('504 Gateway Timeout: Gemini took too long to respond. Retrying with a faster model...');
+      }
+      throw new Error(`Server returned HTTP ${resp.status}: ${responseText.slice(0, 150)}`);
+    }
+
+    console.log('[OCR] Gemini response received:', data);
     if (!resp.ok || data.status !== 'ok' || !data.result) {
-      throw new Error(data.message || 'OCR failed');
+      throw new Error(data.message || 'OCR extraction failed');
     }
     const result = data.result;
     if (result.events && result.events.length > 0) {
