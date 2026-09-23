@@ -324,14 +324,17 @@
             0 CLASSES
           </span>
         </div>
-        <div id="selectAllContainer" class="hidden flex items-center space-x-3">
-          <button id="btnCombineConsecutive" type="button" title="Combine duplicate classes 5 mins apart into a single session" class="px-2.5 py-1 rounded-lg bg-[#ede8df] hover:bg-[#e4ddce] text-stone-800 text-[11px] font-bold border border-[#ded6c5] transition flex items-center space-x-1.5 shadow-2xs">
-            <i data-lucide="merge" class="w-3.5 h-3.5 text-terracotta-600"></i>
-            <span>COMBINE BACK-TO-BACK</span>
-          </button>
+        <div id="selectAllContainer" class="hidden flex items-center space-x-3.5">
+          <label class="flex items-center space-x-1.5 text-stone-700 text-[11px] cursor-pointer hover:text-stone-900 bg-[#ede8df] px-2.5 py-1 rounded-lg border border-[#ded6c5] transition shadow-2xs">
+            <input type="checkbox" id="combineCheckbox" class="w-3.5 h-3.5 rounded bg-white border-[#cfc5b2] text-terracotta-600 focus:ring-0 cursor-pointer">
+            <span class="font-bold flex items-center space-x-1">
+              <i data-lucide="merge" class="w-3 h-3 text-terracotta-600"></i>
+              <span>COMBINE BACK-TO-BACK (5 MINS)</span>
+            </span>
+          </label>
           <div class="flex items-center space-x-1.5">
             <input type="checkbox" id="selectAllCheckbox" checked class="w-3.5 h-3.5 rounded bg-white border-[#cfc5b2] text-terracotta-600 focus:ring-0 cursor-pointer">
-            <label for="selectAllCheckbox" class="text-stone-600 text-[11px] cursor-pointer">SELECT ALL</label>
+            <label for="selectAllCheckbox" class="text-stone-600 text-[11px] cursor-pointer font-bold">SELECT ALL</label>
           </div>
         </div>
       </div>
@@ -454,6 +457,6 @@
     </div>
   </footer>
 
-  <script src="app.js?v=16"></script>
+  <script src="app.js?v=17"></script>
 </body>
 </html>

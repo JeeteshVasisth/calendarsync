@@ -13,12 +13,14 @@
 const state = {
   events: [], // Events for the currently active day
   eventsByDay: { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, // SUN=0 ... SAT=6
+  rawEventsByDay: { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }, // Uncombined raw slots
   targetDateByDay: { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
   dateTextByDay: { 0: '', 1: '', 2: '', 3: '', 4: '', 5: '', 6: '' },
   targetDate: '',
   detectedDateText: '',
   activeDayIndex: -1, // -1 = no day selected yet
   repeatWeekly: true,
+  combineBackToBack: false, // Only combine back-to-back classes when user explicitly ticks it
   semesterEndDate: '2026-12-18',
   reminderMinutes: 10,
   currentImageSrc: null,
@@ -46,7 +48,7 @@ const reminderSelect = document.getElementById('reminderSelect');
 const semesterEndInput = document.getElementById('semesterEndInput');
 const selectAllContainer = document.getElementById('selectAllContainer');
 const selectAllCheckbox = document.getElementById('selectAllCheckbox');
-const btnCombineConsecutive = document.getElementById('btnCombineConsecutive');
+const combineCheckbox = document.getElementById('combineCheckbox');
 const detectedCountBadge = document.getElementById('detectedCountBadge');
 const topLocationCounter = document.getElementById('topLocationCounter');
 const topStatusPill = document.getElementById('topStatusPill');
@@ -122,6 +124,9 @@ function initUI() {
   reminderSelect.value = state.reminderMinutes.toString();
   repeatWeeklyCheckbox.checked = state.repeatWeekly;
   semesterEndInput.value = state.semesterEndDate;
+  if (combineCheckbox) {
+    combineCheckbox.checked = state.combineBackToBack;
+  }
 
   const cachedUser = localStorage.getItem('flame_cached_user');
   if (cachedUser) {
@@ -274,22 +279,33 @@ function initListeners() {
     renderEvents();
   });
 
-  // Combine back-to-back classes button
-  if (btnCombineConsecutive) {
-    btnCombineConsecutive.addEventListener('click', () => {
-      const prevCount = state.events.length;
-      const merged = combineConsecutiveClasses(state.events);
-      const diff = prevCount - merged.length;
-      if (diff > 0) {
-        state.events = merged;
-        if (state.activeDayIndex >= 0) {
-          state.eventsByDay[state.activeDayIndex] = merged;
+  // Combine back-to-back classes toggle (don't combine until user ticks it)
+  if (combineCheckbox) {
+    combineCheckbox.addEventListener('change', (e) => {
+      state.combineBackToBack = e.target.checked;
+      
+      // Update each day's events based on whether combineBackToBack is ticked
+      for (let dayIdx = 0; dayIdx <= 6; dayIdx++) {
+        const raw = state.rawEventsByDay[dayIdx] || [];
+        if (raw.length > 0) {
+          if (state.combineBackToBack) {
+            state.eventsByDay[dayIdx] = combineConsecutiveClasses(raw);
+          } else {
+            state.eventsByDay[dayIdx] = raw.map(ev => ({ ...ev }));
+          }
         }
-        renderEvents();
-        updateLucideIcons();
-        showToast(`Combined ${diff} consecutive slot${diff > 1 ? 's' : ''} into longer sessions!`);
+      }
+
+      if (state.activeDayIndex >= 0) {
+        state.events = state.eventsByDay[state.activeDayIndex] || [];
+      }
+      renderEvents();
+      updateLucideIcons();
+
+      if (state.combineBackToBack) {
+        showToast('Combined consecutive sessions (5 mins apart) into extended classes!');
       } else {
-        showToast('No back-to-back classes with matching names found to combine.', 'warning');
+        showToast('Restored separate lecture slots.');
       }
     });
   }
@@ -707,9 +723,11 @@ async function processImage(imageSrc) {
         primaryTargetDay = populatedDays.includes(state.activeDayIndex) ? state.activeDayIndex : populatedDays[0];
 
         populatedDays.forEach(dayIdx => {
-          const mergedClasses = combineConsecutiveClasses(dayGroups[dayIdx]);
-          state.eventsByDay[dayIdx] = mergedClasses;
-          totalImported += mergedClasses.length;
+          const rawList = dayGroups[dayIdx];
+          state.rawEventsByDay[dayIdx] = rawList.map(ev => ({ ...ev }));
+          const activeList = state.combineBackToBack ? combineConsecutiveClasses(rawList) : rawList.map(ev => ({ ...ev }));
+          state.eventsByDay[dayIdx] = activeList;
+          totalImported += activeList.length;
 
           if (!state.targetDateByDay[dayIdx]) {
             state.targetDateByDay[dayIdx] = getNextDateForDayOfWeek(dayIdx);
@@ -729,8 +747,6 @@ async function processImage(imageSrc) {
           selected: true
         }));
 
-        parsedEvents = combineConsecutiveClasses(parsedEvents);
-
         let detectedDay = dayNameToIndex(result.dateText);
         if (detectedDay === -1 && result.targetDate && result.targetDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
           const parts = result.targetDate.split('-').map(Number);
@@ -742,8 +758,11 @@ async function processImage(imageSrc) {
 
         const targetDay = detectedDay !== -1 ? detectedDay : (state.activeDayIndex >= 0 ? state.activeDayIndex : 1);
         primaryTargetDay = targetDay;
-        state.eventsByDay[targetDay] = parsedEvents;
-        totalImported = parsedEvents.length;
+
+        state.rawEventsByDay[targetDay] = parsedEvents.map(ev => ({ ...ev }));
+        const activeList = state.combineBackToBack ? combineConsecutiveClasses(parsedEvents) : parsedEvents.map(ev => ({ ...ev }));
+        state.eventsByDay[targetDay] = activeList;
+        totalImported = activeList.length;
 
         if (detectedDay !== -1) {
           if (result.targetDate) state.targetDateByDay[targetDay] = result.targetDate;
@@ -880,6 +899,9 @@ function renderEvents() {
   selectAllContainer.classList.remove('hidden');
   bottomCommandBar.classList.remove('hidden');
   selectAllCheckbox.checked = count > 0 && selectedCount === count;
+  if (combineCheckbox) {
+    combineCheckbox.checked = state.combineBackToBack;
+  }
 
   // Render the 3x2 Tactical Cards Grid in Warm Beige
   state.events.forEach((event, index) => {
