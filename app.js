@@ -449,13 +449,13 @@ function handleGoogleCalendarSyncAction() {
   triggerGoogleAuth();
 }
 
-// Helper: Compress/optimize image to JPEG with max 1600px width/height for fast Gemini OCR
+// Helper: Compress/optimize image to JPEG with max 1280px width/height for fast Gemini OCR
 function optimizeImageForOCR(file, callback) {
   const reader = new FileReader();
   reader.onload = (e) => {
     const img = new Image();
     img.onload = () => {
-      const maxDim = 1600;
+      const maxDim = 1280;
       let width = img.width;
       let height = img.height;
       if (width > maxDim || height > maxDim) {
@@ -475,7 +475,7 @@ function optimizeImageForOCR(file, callback) {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
-      const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+      const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
       callback(optimizedDataUrl);
     };
     img.onerror = () => callback(e.target.result);

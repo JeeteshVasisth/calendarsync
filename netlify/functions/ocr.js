@@ -58,8 +58,8 @@ exports.handler = async (event) => {
     "  ] " +
     "}";
 
-  // Live benchmark verified: gemini-3-flash-preview is online and responds in ~8s with high quota.
-  const models = ['gemini-3-flash-preview', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'];
+  // Live benchmark verified: gemini-3.1-flash-lite processes schedule screenshots in ~6.9s without 503 errors.
+  const models = ['gemini-3.1-flash-lite', 'gemini-3-flash-preview', 'gemini-3.6-flash', 'gemini-3.5-flash'];
 
   let lastError = null;
   const attempts = [];
