@@ -58,15 +58,15 @@ exports.handler = async (event) => {
     "  ] " +
     "}";
 
-  // Primary models with generous daily quotas (1,500+ RPD). Reserve gemini-3.8-flash as last-resort fallback.
-  const models = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
+  // gemini-3.6-flash is currently online and active with generous limits.
+  const models = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash'];
 
   let lastError = null;
   const attempts = [];
   const startTime = Date.now();
 
   for (const model of models) {
-    // If we've already spent > 18s total, break to avoid Netlify 26s hard kill
+    // If we've already spent > 18s total, break to avoid Netlify hard kill
     if (Date.now() - startTime > 18000) {
       const msg = `Approaching function timeout (${Date.now() - startTime}ms elapsed), skipping remaining models.`;
       console.warn(`[OCR Serverless] ${msg}`);
@@ -89,8 +89,8 @@ exports.handler = async (event) => {
         }]
       };
 
-      // Set thinkingBudget: 0 for flash models that support it to get instant response
-      if (model === 'gemini-3.8-flash' || model === 'gemini-3.5-flash') {
+      // Set thinkingBudget: 0 for flash models that support it to eliminate thinking delay
+      if (model === 'gemini-3.6-flash' || model === 'gemini-3.8-flash' || model === 'gemini-3.5-flash') {
         payload.generationConfig = {
           thinkingConfig: {
             thinkingBudget: 0
