@@ -929,13 +929,15 @@ function renderEvents() {
 
     card.innerHTML = `
       <!-- Card Top Header (Title + Utility Buttons) -->
-      <div class="flex items-start justify-between gap-2 border-b border-[#ded6c5] pb-2 font-mono">
-        <div class="flex items-center space-x-2 flex-1 truncate">
-          <input type="checkbox" data-index="${index}" class="event-checkbox w-3.5 h-3.5 rounded bg-white border-[#cfc5b2] text-terracotta-600 focus:ring-0 cursor-pointer" ${event.selected ? 'checked' : ''}>
-          <span class="text-terracotta-600 text-xs">▼</span>
-          <h4 class="text-xs font-bold text-stone-900 uppercase tracking-wide truncate">
-            ${escapeHtml(event.courseCode)} (${escapeHtml(event.courseTitle)})
-          </h4>
+      <div class="flex items-center justify-between gap-2 border-b border-[#ded6c5] pb-2 font-mono">
+        <div class="flex items-center space-x-2 flex-1">
+          <input type="checkbox" data-index="${index}" class="event-checkbox w-3.5 h-3.5 rounded bg-white border-[#cfc5b2] text-terracotta-600 focus:ring-0 cursor-pointer shrink-0" ${event.selected ? 'checked' : ''}>
+          <div class="flex items-center space-x-1.5 flex-1 min-w-0">
+            <input type="text" data-field="courseCode" data-index="${index}" value="${escapeHtml(event.courseCode || '')}" placeholder="COURSE CODE" class="edit-event-field uppercase font-bold text-xs text-stone-900 bg-[#ede8df]/60 hover:bg-[#ede8df] focus:bg-white focus:outline-none focus:ring-1 focus:ring-terracotta-600 rounded px-1.5 py-0.5 border border-transparent hover:border-[#ded6c5] transition w-28 shrink-0">
+            <span class="text-stone-400 text-xs font-bold">(</span>
+            <input type="text" data-field="courseTitle" data-index="${index}" value="${escapeHtml(event.courseTitle || '')}" placeholder="Course Title" class="edit-event-field font-semibold text-xs text-stone-800 bg-[#ede8df]/60 hover:bg-[#ede8df] focus:bg-white focus:outline-none focus:ring-1 focus:ring-terracotta-600 rounded px-1.5 py-0.5 border border-transparent hover:border-[#ded6c5] transition flex-1 min-w-0 truncate">
+            <span class="text-stone-400 text-xs font-bold">)</span>
+          </div>
         </div>
         <div class="flex items-center space-x-1 shrink-0">
           <a href="${gcalWebLink}" target="_blank" title="Add directly to Google Calendar" class="w-6 h-6 rounded bg-[#ede8df] hover:bg-[#e4dcce] text-stone-700 flex items-center justify-center border border-[#ded6c5] transition text-[10px]">
@@ -947,17 +949,17 @@ function renderEvents() {
         </div>
       </div>
 
-      <!-- Second Row: Status Badge + Location -->
-      <div class="flex items-center justify-between text-[10px] font-mono">
-        <div class="flex items-center space-x-2">
-          <span class="px-2 py-0.5 rounded bg-[#ede8df] text-stone-800 font-bold border border-[#ded6c5] uppercase">
-            SCHEDULED
+      <!-- Second Row: Status Badge + Instructor + Location inputs -->
+      <div class="flex items-center justify-between gap-2 text-[10px] font-mono">
+        <div class="flex items-center space-x-1.5 flex-1 min-w-0">
+          <span class="px-1.5 py-0.5 rounded bg-[#ede8df] text-stone-700 font-bold border border-[#ded6c5] uppercase text-[9px] shrink-0">
+            PROF
           </span>
-          <span class="text-stone-600 truncate max-w-[150px]">${escapeHtml(event.instructor)}</span>
+          <input type="text" data-field="instructor" data-index="${index}" value="${escapeHtml(event.instructor || '')}" placeholder="Professor Name" class="edit-event-field text-stone-700 text-[10px] font-medium bg-[#ede8df]/60 hover:bg-[#ede8df] focus:bg-white focus:outline-none focus:ring-1 focus:ring-terracotta-600 rounded px-1.5 py-0.5 border border-transparent hover:border-[#ded6c5] transition flex-1 min-w-0">
         </div>
-        <div class="flex items-center space-x-1 text-stone-600 font-mono">
-          <i data-lucide="map-pin" class="w-3 h-3 text-terracotta-600"></i>
-          <span class="text-stone-900 font-bold truncate">${escapeHtml(event.location)}</span>
+        <div class="flex items-center space-x-1 shrink-0">
+          <i data-lucide="map-pin" class="w-3 h-3 text-terracotta-600 shrink-0"></i>
+          <input type="text" data-field="location" data-index="${index}" value="${escapeHtml(event.location || '')}" placeholder="Room / Location" class="edit-event-field text-stone-900 font-bold text-[10px] bg-[#ede8df]/60 hover:bg-[#ede8df] focus:bg-white focus:outline-none focus:ring-1 focus:ring-terracotta-600 rounded px-1.5 py-0.5 border border-transparent hover:border-[#ded6c5] transition w-32 text-right">
         </div>
       </div>
 
@@ -1004,6 +1006,22 @@ function renderEvents() {
       const idx = parseInt(e.target.dataset.index, 10);
       state.events[idx].selected = e.target.checked;
       renderEvents();
+    });
+  });
+
+  // Real-time text box editing for courseCode, courseTitle, instructor, and location
+  document.querySelectorAll('.edit-event-field').forEach(input => {
+    input.addEventListener('input', (e) => {
+      const idx = parseInt(e.target.dataset.index, 10);
+      const field = e.target.dataset.field;
+      if (state.events[idx]) {
+        state.events[idx][field] = e.target.value;
+        // Sync raw events copy as well
+        if (state.activeDayIndex >= 0 && state.rawEventsByDay[state.activeDayIndex]) {
+          const raw = state.rawEventsByDay[state.activeDayIndex].find(ev => ev.id === state.events[idx].id);
+          if (raw) raw[field] = e.target.value;
+        }
+      }
     });
   });
 
