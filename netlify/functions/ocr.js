@@ -40,10 +40,10 @@ exports.handler = async (event) => {
     "You are a timetable parser. Look at this university schedule screenshot carefully. " +
     "Extract ALL the classes shown and return ONLY a raw JSON object (no markdown, no code fences, no explanation). " +
     "The JSON must have these exact fields: " +
-    "dateText (string, the full date shown e.g. 'Thursday, September 3'), " +
-    "targetDate (string, YYYY-MM-DD format), " +
+    "dateText (string, the full date shown in the image e.g. 'Thursday, September 3'. If NO date or day is visible in the image, return empty string \"\"), " +
+    "targetDate (string, YYYY-MM-DD format if a date is shown in the image. If NO date is visible in the image, return empty string \"\"), " +
     "events (array of objects each with: courseCode, courseTitle, instructor, startTime (12h e.g. '8:00 AM'), endTime, location). " +
-    "Return ONLY the JSON object, nothing else.";
+    "Do NOT hallucinate or guess a day or date if it is not clearly written in the screenshot. Return ONLY the JSON object, nothing else.";
 
   const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`;
 

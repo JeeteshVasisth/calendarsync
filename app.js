@@ -245,6 +245,9 @@ function initListeners() {
   // Date and Recurrence
   eventDateInput.addEventListener('change', (e) => {
     state.targetDate = e.target.value;
+    if (state.activeDayIndex >= 0) {
+      state.targetDateByDay[state.activeDayIndex] = state.targetDate;
+    }
     heroDateBadge.textContent = state.targetDate;
     renderEvents();
   });
@@ -424,6 +427,22 @@ function handleImageFile(file) {
 }
 
 
+// Helper: get next upcoming date YYYY-MM-DD for a given day index (0=Sun...6=Sat)
+function getNextDateForDayOfWeek(targetDayIdx) {
+  const now = new Date();
+  const currentDayIdx = now.getDay();
+  let diff = targetDayIdx - currentDayIdx;
+  if (diff < 0) diff += 7;
+  const d = new Date(now);
+  d.setDate(now.getDate() + diff);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+const DAY_NAMES_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
 // Helper: day name string → day index (0=Sun … 6=Sat)
 function dayNameToIndex(dateText) {
   const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
@@ -438,12 +457,19 @@ function dayNameToIndex(dateText) {
 function setActiveDay(dayIdx) {
   state.activeDayIndex = dayIdx;
   state.events = state.eventsByDay[dayIdx] || [];
+
   if (state.targetDateByDay[dayIdx]) {
     state.targetDate = state.targetDateByDay[dayIdx];
-    eventDateInput.value = state.targetDate;
+  } else {
+    state.targetDate = getNextDateForDayOfWeek(dayIdx);
+    state.targetDateByDay[dayIdx] = state.targetDate;
   }
+  eventDateInput.value = state.targetDate;
+
   if (state.dateTextByDay[dayIdx]) {
     state.detectedDateText = state.dateTextByDay[dayIdx];
+  } else {
+    state.detectedDateText = DAY_NAMES_FULL[dayIdx] || '';
   }
 
   // Update day button styles
@@ -534,34 +560,43 @@ async function processImage(imageSrc) {
         selected: true
       }));
 
-      const detectedDay = dayNameToIndex(result.dateText);
-      console.log('[OCR] Detected day:', result.dateText, '→ index', detectedDay);
+      // Detect which day this screenshot belongs to
+      let detectedDay = dayNameToIndex(result.dateText);
+      // Fallback: check if targetDate can determine day of week
+      if (detectedDay === -1 && result.targetDate && result.targetDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const parts = result.targetDate.split('-').map(Number);
+        const parsedD = new Date(parts[0], parts[1] - 1, parts[2]);
+        if (!isNaN(parsedD.getTime())) {
+          detectedDay = parsedD.getDay();
+        }
+      }
+
+      // If screenshot does NOT contain a day/date, assign to currently selected day (or default Monday)
+      const targetDay = detectedDay !== -1 ? detectedDay : (state.activeDayIndex >= 0 ? state.activeDayIndex : 1);
+      console.log('[OCR] Detected day:', result.dateText, '→ index', detectedDay, '| Target day:', targetDay);
+
+      state.eventsByDay[targetDay] = parsedEvents;
 
       if (detectedDay !== -1) {
-        state.eventsByDay[detectedDay] = parsedEvents;
-        if (result.targetDate) state.targetDateByDay[detectedDay] = result.targetDate;
-        if (result.dateText) state.dateTextByDay[detectedDay] = result.dateText;
-      }
-      if (result.targetDate) {
-        state.targetDate = result.targetDate;
-        eventDateInput.value = state.targetDate;
-      }
-      if (result.dateText) {
-        state.detectedDateText = result.dateText;
+        if (result.targetDate) state.targetDateByDay[targetDay] = result.targetDate;
+        if (result.dateText) state.dateTextByDay[targetDay] = result.dateText;
+      } else {
+        // No date was in screenshot: retain or generate the date for targetDay
+        if (!state.targetDateByDay[targetDay]) {
+          state.targetDateByDay[targetDay] = getNextDateForDayOfWeek(targetDay);
+        }
+        if (!state.dateTextByDay[targetDay]) {
+          state.dateTextByDay[targetDay] = DAY_NAMES_FULL[targetDay] || '';
+        }
       }
 
       processingProgressBar.style.width = '100%';
       setTimeout(() => {
         processingSection.classList.add('hidden');
         isProcessing = false;
-        if (detectedDay !== -1) {
-          setActiveDay(detectedDay);
-        } else {
-          state.events = parsedEvents;
-          renderEvents();
-          updateLucideIcons();
-        }
-        showToast(`Detected ${parsedEvents.length} classes for ${result.dateText || 'this day'}!`);
+        setActiveDay(targetDay);
+        const label = state.dateTextByDay[targetDay] || DAY_NAMES_FULL[targetDay] || 'this day';
+        showToast(`Detected ${parsedEvents.length} classes for ${label}!`);
       }, 250);
     } else {
       throw new Error('No classes found in screenshot');
