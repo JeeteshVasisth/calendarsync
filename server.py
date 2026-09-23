@@ -132,22 +132,38 @@ class FlameRequestHandler(http.server.SimpleHTTPRequestHandler):
                         }
                     ]
                 }
-                req = urllib.request.Request(gemini_url, data=json.dumps(gemini_payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
-                with urllib.request.urlopen(req) as resp:
-                    resp_body = resp.read().decode('utf-8')
-                gemini_resp = json.loads(resp_body)
-                candidates = gemini_resp.get('candidates', [])
-                if not candidates:
-                    raise ValueError('No candidates in Gemini response: ' + resp_body[:300])
-                text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
-                # Strip markdown code fences if Gemini wraps the JSON
-                text = text.strip()
-                if text.startswith('```'):
-                    text = text.split('\n', 1)[-1]  # remove opening fence line
-                if text.endswith('```'):
-                    text = text.rsplit('```', 1)[0]  # remove closing fence
-                text = text.strip()
-                result = json.loads(text)
+                models = ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-2.5-flash-lite']
+                result = None
+                last_err = None
+
+                for model in models:
+                    try:
+                        gemini_url = f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}'
+                        req = urllib.request.Request(gemini_url, data=json.dumps(gemini_payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
+                        with urllib.request.urlopen(req) as resp:
+                            resp_body = resp.read().decode('utf-8')
+                        gemini_resp = json.loads(resp_body)
+                        if 'error' in gemini_resp:
+                            raise ValueError(f"{model} error {gemini_resp['error'].get('code')}: {gemini_resp['error'].get('message')}")
+                        candidates = gemini_resp.get('candidates', [])
+                        if not candidates:
+                            raise ValueError(f'No candidates in {model} response: ' + resp_body[:300])
+                        text = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '')
+                        text = text.strip()
+                        if text.startswith('```'):
+                            text = text.split('\n', 1)[-1]
+                        if text.endswith('```'):
+                            text = text.rsplit('```', 1)[0]
+                        text = text.strip()
+                        result = json.loads(text)
+                        break
+                    except Exception as err:
+                        print(f"[OCR] Fallback from {model}: {err}")
+                        last_err = err
+
+                if result is None:
+                    raise last_err or ValueError("All models failed")
+
                 response_body = json.dumps({"status": "ok", "result": result}).encode('utf-8')
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')

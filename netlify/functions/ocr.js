@@ -45,8 +45,7 @@ exports.handler = async (event) => {
     "events (array of objects each with: courseCode, courseTitle, instructor, startTime (12h e.g. '8:00 AM'), endTime, location). " +
     "Do NOT hallucinate or guess a day or date if it is not clearly written in the screenshot. Return ONLY the JSON object, nothing else.";
 
-  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`;
-
+  const models = ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-2.5-flash-lite'];
   const geminiPayload = {
     contents: [{
       role: "user",
@@ -57,38 +56,53 @@ exports.handler = async (event) => {
     }]
   };
 
-  try {
-    const resp = await fetch(geminiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(geminiPayload)
-    });
+  let lastError = null;
 
-    const geminiResp = await resp.json();
-    const candidates = geminiResp.candidates || [];
+  for (const model of models) {
+    try {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      console.log(`[OCR] Calling model: ${model}`);
 
-    if (!candidates.length) {
-      throw new Error("No candidates in Gemini response: " + JSON.stringify(geminiResp).slice(0, 300));
+      const resp = await fetch(geminiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(geminiPayload)
+      });
+
+      const geminiResp = await resp.json();
+
+      // Check if this model returned an error (like 503 high demand, rate limit, etc.)
+      if (geminiResp.error) {
+        throw new Error(`${model} error ${geminiResp.error.code}: ${geminiResp.error.message}`);
+      }
+
+      const candidates = geminiResp.candidates || [];
+      if (!candidates.length) {
+        throw new Error(`No candidates in ${model} response: ` + JSON.stringify(geminiResp).slice(0, 300));
+      }
+
+      let text = candidates[0]?.content?.parts?.[0]?.text || "";
+      text = text.trim();
+      text = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
+
+      const result = JSON.parse(text);
+
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "ok", result, modelUsed: model })
+      };
+    } catch (err) {
+      console.warn(`[OCR] Fallback triggered from ${model}:`, err.message);
+      lastError = err;
+      // Continue to next model in the fallback array
     }
-
-    let text = candidates[0]?.content?.parts?.[0]?.text || "";
-    text = text.trim();
-    // Strip markdown code fences if present
-    text = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
-
-    const result = JSON.parse(text);
-
-    return {
-      statusCode: 200,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "ok", result })
-    };
-  } catch (err) {
-    console.error("[OCR function error]", err);
-    return {
-      statusCode: 500,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "error", message: err.message || "OCR failed" })
-    };
   }
+
+  console.error("[OCR function error - all models failed]", lastError);
+  return {
+    statusCode: 500,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status: "error", message: lastError ? lastError.message : "OCR failed on all models" })
+  };
 };
