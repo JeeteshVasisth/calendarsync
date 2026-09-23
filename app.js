@@ -607,6 +607,7 @@ async function processImage(imageSrc) {
   }
 
   processingProgressBar.style.width = '60%';
+  const payload = { image: b64, mimeType };
   console.log(`[OCR] Sending timetable screenshot to /api/ocr (MIME: ${mimeType}, payload size: ${Math.round(b64.length / 1024)} KB)`);
   
   try {
