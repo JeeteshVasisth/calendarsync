@@ -46,6 +46,7 @@ const reminderSelect = document.getElementById('reminderSelect');
 const semesterEndInput = document.getElementById('semesterEndInput');
 const selectAllContainer = document.getElementById('selectAllContainer');
 const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+const btnCombineConsecutive = document.getElementById('btnCombineConsecutive');
 const detectedCountBadge = document.getElementById('detectedCountBadge');
 const topLocationCounter = document.getElementById('topLocationCounter');
 const topStatusPill = document.getElementById('topStatusPill');
@@ -273,6 +274,26 @@ function initListeners() {
     renderEvents();
   });
 
+  // Combine back-to-back classes button
+  if (btnCombineConsecutive) {
+    btnCombineConsecutive.addEventListener('click', () => {
+      const prevCount = state.events.length;
+      const merged = combineConsecutiveClasses(state.events);
+      const diff = prevCount - merged.length;
+      if (diff > 0) {
+        state.events = merged;
+        if (state.activeDayIndex >= 0) {
+          state.eventsByDay[state.activeDayIndex] = merged;
+        }
+        renderEvents();
+        updateLucideIcons();
+        showToast(`Combined ${diff} consecutive slot${diff > 1 ? 's' : ''} into longer sessions!`);
+      } else {
+        showToast('No back-to-back classes with matching names found to combine.', 'warning');
+      }
+    });
+  }
+
   // Sync & Export
   btnDownloadICS.addEventListener('click', () => {
     downloadICSFile();
@@ -427,6 +448,54 @@ function handleImageFile(file) {
 }
 
 
+// Helper: Convert time string (e.g. '8:00 AM') to minutes since start of day
+function timeToMinutes(timeStr) {
+  const parsed = parseTimeString(timeStr);
+  return parsed.hours * 60 + parsed.minutes;
+}
+
+// Helper: Combine consecutive classes with same name that are <= 5 mins apart
+function combineConsecutiveClasses(eventsList) {
+  if (!eventsList || eventsList.length <= 1) return eventsList ? [...eventsList] : [];
+
+  // Sort events chronologically by start time
+  const sorted = [...eventsList].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+  const combined = [];
+
+  for (let i = 0; i < sorted.length; i++) {
+    const curr = { ...sorted[i] };
+    if (combined.length === 0) {
+      combined.push(curr);
+      continue;
+    }
+
+    const prev = combined[combined.length - 1];
+
+    // Normalize course codes and titles for matching
+    const sameCode = (prev.courseCode || '').trim().toUpperCase() === (curr.courseCode || '').trim().toUpperCase();
+    const sameTitle = (prev.courseTitle || '').trim().toUpperCase() === (curr.courseTitle || '').trim().toUpperCase();
+    const sameCourse = sameCode || sameTitle;
+
+    const prevEndMin = timeToMinutes(prev.endTime);
+    const currStartMin = timeToMinutes(curr.startTime);
+    const currEndMin = timeToMinutes(curr.endTime);
+    const gap = currStartMin - prevEndMin;
+
+    // If same class and gap between previous end and current start is between 0 and 5 minutes (or overlapping)
+    if (sameCourse && gap >= 0 && gap <= 5 && currEndMin > prevEndMin) {
+      // Merge into prev: extend its endTime to curr.endTime
+      prev.endTime = curr.endTime;
+      // Retain or complement location and instructor if missing
+      if (!prev.location && curr.location) prev.location = curr.location;
+      if (!prev.instructor && curr.instructor) prev.instructor = curr.instructor;
+    } else {
+      combined.push(curr);
+    }
+  }
+
+  return combined;
+}
+
 // Helper: get next upcoming date YYYY-MM-DD for a given day index (0=Sun...6=Sat)
 function getNextDateForDayOfWeek(targetDayIdx) {
   const now = new Date();
@@ -553,12 +622,15 @@ async function processImage(imageSrc) {
     }
     const result = data.result;
     if (result.events && result.events.length > 0) {
-      const parsedEvents = result.events.map((e, i) => ({
+      let parsedEvents = result.events.map((e, i) => ({
         ...e,
         id: e.id || 'ev_' + Date.now() + '_' + i,
         startHour: parseTimeString(e.startTime).hours,
         selected: true
       }));
+
+      // Automatically combine classes with the same name that are 5 mins apart (or less)
+      parsedEvents = combineConsecutiveClasses(parsedEvents);
 
       // Detect which day this screenshot belongs to
       let detectedDay = dayNameToIndex(result.dateText);
