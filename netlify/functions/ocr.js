@@ -58,8 +58,8 @@ exports.handler = async (event) => {
     "  ] " +
     "}";
 
-  // Model cascade: try fast models first with thinkingBudget: 0 where supported
-  const models = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
+  // Primary models with generous daily quotas (1,500+ RPD). Reserve gemini-3.8-flash as last-resort fallback.
+  const models = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
 
   let lastError = null;
   const startTime = Date.now();
