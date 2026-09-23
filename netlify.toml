@@ -14,3 +14,11 @@
   from = "/api/ocr"
   to = "/.netlify/functions/ocr"
   status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Pragma = "no-cache"
+    Expires = "0"
+
