@@ -54,7 +54,12 @@ exports.handler = async (event) => {
         { inline_data: { mime_type: mimeType, data: image } },
         { text: prompt }
       ]
-    }]
+    }],
+    generationConfig: {
+      thinkingConfig: {
+        thinkingBudget: 0
+      }
+    }
   };
 
   let lastError = null;
@@ -64,9 +69,9 @@ exports.handler = async (event) => {
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       console.log(`[OCR Serverless] Calling model: ${model}`);
 
-      // Abort each request after 6.5s to fit within Netlify's 10s execution limit
+      // Abort each request after 9s to ensure response completes within Netlify's 10s execution limit
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6500);
+      const timeoutId = setTimeout(() => controller.abort(), 9000);
 
       let resp;
       try {
