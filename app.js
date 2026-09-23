@@ -640,6 +640,7 @@ async function processImage(imageSrc) {
       throw new Error(data.message || 'OCR extraction failed');
     }
     const result = data.result;
+    if (result.events && result.events.length > 0) {
       // Check if events have individual dayName or dateText assigned (multi-day schedule)
       const dayGroups = {};
       let hasMultiDayAssignment = false;
