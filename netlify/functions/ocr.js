@@ -58,17 +58,23 @@ exports.handler = async (event) => {
     "  ] " +
     "}";
 
-  // Put responsive models first. gemini-3.5-flash is currently fast and active.
-  const models = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.5-flash-lite'];
+  // Model cascade: try fast models first with thinkingBudget: 0 where supported
+  const models = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
 
   let lastError = null;
+  const startTime = Date.now();
 
   for (const model of models) {
+    // If we've already spent > 18s total, break to avoid Netlify 26s hard kill
+    if (Date.now() - startTime > 18000) {
+      console.warn(`[OCR Serverless] Approaching function timeout (${Date.now() - startTime}ms elapsed), skipping remaining models.`);
+      break;
+    }
+
     try {
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       console.log(`[OCR Serverless] Calling model: ${model}`);
 
-      // gemini-3.5-flash supports thinkingConfig (budget 0 = 3s response); lite models do not accept thinkingConfig
       const payload = {
         contents: [{
           role: "user",
@@ -79,7 +85,8 @@ exports.handler = async (event) => {
         }]
       };
 
-      if (model === 'gemini-3.5-flash') {
+      // Set thinkingBudget: 0 for flash models that support it to get instant response
+      if (model === 'gemini-3.8-flash' || model === 'gemini-3.5-flash') {
         payload.generationConfig = {
           thinkingConfig: {
             thinkingBudget: 0
@@ -87,9 +94,11 @@ exports.handler = async (event) => {
         };
       }
 
-      // Abort each request after 24s to ensure response completes within Netlify's 26s execution limit
+      // Allow up to 10s per model attempt
+      const remainingMs = Math.max(5000, 22000 - (Date.now() - startTime));
+      const perModelTimeout = Math.min(10000, remainingMs);
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 24000);
+      const timeoutId = setTimeout(() => controller.abort(), perModelTimeout);
 
       let resp;
       try {
