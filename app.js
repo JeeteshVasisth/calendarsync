@@ -514,10 +514,16 @@ const DAY_NAMES_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 
 
 // Helper: day name string → day index (0=Sun … 6=Sat)
 function dayNameToIndex(dateText) {
-  const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
-  const lower = (dateText || '').toLowerCase();
-  for (let i = 0; i < days.length; i++) {
-    if (lower.includes(days[i])) return i;
+  if (!dateText) return -1;
+  const lower = dateText.toLowerCase();
+  const daysFull = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  for (let i = 0; i < daysFull.length; i++) {
+    if (lower.includes(daysFull[i])) return i;
+  }
+  const daysShort = ['sun','mon','tue','wed','thu','fri','sat'];
+  for (let i = 0; i < daysShort.length; i++) {
+    const regex = new RegExp(`\\b${daysShort[i]}\\b`, 'i');
+    if (regex.test(lower)) return i;
   }
   return -1;
 }
@@ -634,44 +640,87 @@ async function processImage(imageSrc) {
       throw new Error(data.message || 'OCR extraction failed');
     }
     const result = data.result;
-    if (result.events && result.events.length > 0) {
-      let parsedEvents = result.events.map((e, i) => ({
-        ...e,
-        id: e.id || 'ev_' + Date.now() + '_' + i,
-        startHour: parseTimeString(e.startTime).hours,
-        selected: true
-      }));
+      // Check if events have individual dayName or dateText assigned (multi-day schedule)
+      const dayGroups = {};
+      let hasMultiDayAssignment = false;
 
-      // Automatically combine classes with the same name that are 5 mins apart (or less)
-      parsedEvents = combineConsecutiveClasses(parsedEvents);
+      result.events.forEach((e, i) => {
+        let eventDayIdx = -1;
+        if (e.dayName) eventDayIdx = dayNameToIndex(e.dayName);
+        if (eventDayIdx === -1 && e.dateText) eventDayIdx = dayNameToIndex(e.dateText);
 
-      // Detect which day this screenshot belongs to
-      let detectedDay = dayNameToIndex(result.dateText);
-      // Fallback: check if targetDate can determine day of week
-      if (detectedDay === -1 && result.targetDate && result.targetDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        const parts = result.targetDate.split('-').map(Number);
-        const parsedD = new Date(parts[0], parts[1] - 1, parts[2]);
-        if (!isNaN(parsedD.getTime())) {
-          detectedDay = parsedD.getDay();
+        if (eventDayIdx !== -1) {
+          hasMultiDayAssignment = true;
+          if (!dayGroups[eventDayIdx]) dayGroups[eventDayIdx] = [];
+          dayGroups[eventDayIdx].push({
+            ...e,
+            id: e.id || 'ev_' + Date.now() + '_' + i,
+            startHour: parseTimeString(e.startTime).hours,
+            selected: true
+          });
+          if (e.dateText && !state.dateTextByDay[eventDayIdx]) {
+            state.dateTextByDay[eventDayIdx] = e.dateText;
+          }
         }
-      }
+      });
 
-      // If screenshot does NOT contain a day/date, assign to currently selected day (or default Monday)
-      const targetDay = detectedDay !== -1 ? detectedDay : (state.activeDayIndex >= 0 ? state.activeDayIndex : 1);
-      console.log('[OCR] Detected day:', result.dateText, '→ index', detectedDay, '| Target day:', targetDay);
+      let primaryTargetDay = state.activeDayIndex >= 0 ? state.activeDayIndex : 1;
+      let totalImported = 0;
 
-      state.eventsByDay[targetDay] = parsedEvents;
+      if (hasMultiDayAssignment && Object.keys(dayGroups).length > 0) {
+        // Multi-day schedule: distribute classes into each respective weekday slot
+        const populatedDays = Object.keys(dayGroups).map(Number).sort((a, b) => a - b);
+        primaryTargetDay = populatedDays.includes(state.activeDayIndex) ? state.activeDayIndex : populatedDays[0];
 
-      if (detectedDay !== -1) {
-        if (result.targetDate) state.targetDateByDay[targetDay] = result.targetDate;
-        if (result.dateText) state.dateTextByDay[targetDay] = result.dateText;
+        populatedDays.forEach(dayIdx => {
+          const mergedClasses = combineConsecutiveClasses(dayGroups[dayIdx]);
+          state.eventsByDay[dayIdx] = mergedClasses;
+          totalImported += mergedClasses.length;
+
+          if (!state.targetDateByDay[dayIdx]) {
+            state.targetDateByDay[dayIdx] = getNextDateForDayOfWeek(dayIdx);
+          }
+          if (!state.dateTextByDay[dayIdx]) {
+            state.dateTextByDay[dayIdx] = DAY_NAMES_FULL[dayIdx] || '';
+          }
+        });
+
+        console.log(`[OCR Multi-Day] Assigned classes across ${populatedDays.length} days:`, populatedDays);
       } else {
-        // No date was in screenshot: retain or generate the date for targetDay
-        if (!state.targetDateByDay[targetDay]) {
-          state.targetDateByDay[targetDay] = getNextDateForDayOfWeek(targetDay);
+        // Single day schedule: assign all events to the single detected day (or active day)
+        let parsedEvents = result.events.map((e, i) => ({
+          ...e,
+          id: e.id || 'ev_' + Date.now() + '_' + i,
+          startHour: parseTimeString(e.startTime).hours,
+          selected: true
+        }));
+
+        parsedEvents = combineConsecutiveClasses(parsedEvents);
+
+        let detectedDay = dayNameToIndex(result.dateText);
+        if (detectedDay === -1 && result.targetDate && result.targetDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          const parts = result.targetDate.split('-').map(Number);
+          const parsedD = new Date(parts[0], parts[1] - 1, parts[2]);
+          if (!isNaN(parsedD.getTime())) {
+            detectedDay = parsedD.getDay();
+          }
         }
-        if (!state.dateTextByDay[targetDay]) {
-          state.dateTextByDay[targetDay] = DAY_NAMES_FULL[targetDay] || '';
+
+        const targetDay = detectedDay !== -1 ? detectedDay : (state.activeDayIndex >= 0 ? state.activeDayIndex : 1);
+        primaryTargetDay = targetDay;
+        state.eventsByDay[targetDay] = parsedEvents;
+        totalImported = parsedEvents.length;
+
+        if (detectedDay !== -1) {
+          if (result.targetDate) state.targetDateByDay[targetDay] = result.targetDate;
+          if (result.dateText) state.dateTextByDay[targetDay] = result.dateText;
+        } else {
+          if (!state.targetDateByDay[targetDay]) {
+            state.targetDateByDay[targetDay] = getNextDateForDayOfWeek(targetDay);
+          }
+          if (!state.dateTextByDay[targetDay]) {
+            state.dateTextByDay[targetDay] = DAY_NAMES_FULL[targetDay] || '';
+          }
         }
       }
 
@@ -679,9 +728,9 @@ async function processImage(imageSrc) {
       setTimeout(() => {
         processingSection.classList.add('hidden');
         isProcessing = false;
-        setActiveDay(targetDay);
-        const label = state.dateTextByDay[targetDay] || DAY_NAMES_FULL[targetDay] || 'this day';
-        showToast(`Detected ${parsedEvents.length} classes for ${label}!`);
+        setActiveDay(primaryTargetDay);
+        refreshDayButtonIndicators();
+        showToast(`Imported ${totalImported} classes across your weekly timetable!`);
       }, 250);
     } else {
       throw new Error('No classes found in screenshot');

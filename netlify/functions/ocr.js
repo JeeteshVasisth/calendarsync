@@ -37,13 +37,26 @@ exports.handler = async (event) => {
   }
 
   const prompt =
-    "You are a timetable parser. Look at this university schedule screenshot carefully. " +
-    "Extract ALL the classes shown and return ONLY a raw JSON object (no markdown, no code fences, no explanation). " +
-    "The JSON must have these exact fields: " +
-    "dateText (string, the full date shown in the image e.g. 'Thursday, September 3'. If NO date or day is visible in the image, return empty string \"\"), " +
-    "targetDate (string, YYYY-MM-DD format if a date is shown in the image. If NO date is visible in the image, return empty string \"\"), " +
-    "events (array of objects each with: courseCode, courseTitle, instructor, startTime (12h e.g. '8:00 AM'), endTime, location). " +
-    "Do NOT hallucinate or guess a day or date if it is not clearly written in the screenshot. Return ONLY the JSON object, nothing else.";
+    "You are an expert university schedule and timetable parser. Look at this schedule screenshot carefully. " +
+    "The screenshot may show a single day OR a weekly calendar grid with multiple day columns (e.g. Mon, Tue, Wed, Thu, Fri, Sat, Sun). " +
+    "Extract ALL classes shown across all columns or days. " +
+    "Return ONLY a raw JSON object (no markdown, no code fences, no commentary) with this structure: " +
+    "{" +
+    "  \"dateText\": string (if the screenshot is for a single day, the date string e.g. 'Thursday, September 3'; if multi-day or not visible, return ''), " +
+    "  \"targetDate\": string (YYYY-MM-DD if a single date is shown, else ''), " +
+    "  \"events\": [ " +
+    "    { " +
+    "      \"dayName\": string ('Sunday'|'Monday'|'Tuesday'|'Wednesday'|'Thursday'|'Friday'|'Saturday' - the day of the week this class belongs to from the column header or day section), " +
+    "      \"dateText\": string (the date/day text shown for this specific day column e.g. 'Wed 9/23', or empty string), " +
+    "      \"courseCode\": string (e.g. 'PUBP207_UGSEM3'), " +
+    "      \"courseTitle\": string (e.g. 'Principles of Music' or empty string), " +
+    "      \"instructor\": string (e.g. 'Dr. Juhi Sidharth'), " +
+    "      \"startTime\": string (12h format e.g. '10:00 AM'), " +
+    "      \"endTime\": string (12h format e.g. '10:55 AM'), " +
+    "      \"location\": string (classroom e.g. 'APJ Abdul Kalam 102' or empty string) " +
+    "    } " +
+    "  ] " +
+    "}";
 
   // Put responsive models first. gemini-3.5-flash is currently fast and active.
   const models = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.5-flash-lite'];
