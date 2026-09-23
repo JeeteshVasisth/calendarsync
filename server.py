@@ -121,22 +121,6 @@ class FlameRequestHandler(http.server.SimpleHTTPRequestHandler):
                     "events (array of objects, each with: courseCode, courseTitle, instructor, startTime, endTime, location). "
                     "Do NOT hallucinate or guess a day or date if it is not clearly written in the screenshot. Return ONLY the JSON object, nothing else."
                 )
-                gemini_payload = {
-                    "contents": [
-                        {
-                            "role": "user",
-                            "parts": [
-                                {"inline_data": {"mime_type": mime_type, "data": b64_image}},
-                                {"text": prompt}
-                            ]
-                        }
-                    ],
-                    "generationConfig": {
-                        "thinkingConfig": {
-                            "thinkingBudget": 0
-                        }
-                    }
-                }
                 models = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.5-flash-lite']
                 result = None
                 last_err = None
@@ -144,8 +128,25 @@ class FlameRequestHandler(http.server.SimpleHTTPRequestHandler):
                 for model in models:
                     try:
                         gemini_url = f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}'
+                        gemini_payload = {
+                            "contents": [
+                                {
+                                    "role": "user",
+                                    "parts": [
+                                        {"inline_data": {"mime_type": mime_type, "data": b64_image}},
+                                        {"text": prompt}
+                                    ]
+                                }
+                            ]
+                        }
+                        if model == 'gemini-3.5-flash':
+                            gemini_payload["generationConfig"] = {
+                                "thinkingConfig": {
+                                    "thinkingBudget": 0
+                                }
+                            }
                         req = urllib.request.Request(gemini_url, data=json.dumps(gemini_payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
-                        with urllib.request.urlopen(req, timeout=7) as resp:
+                        with urllib.request.urlopen(req, timeout=9) as resp:
                             resp_body = resp.read().decode('utf-8')
                         gemini_resp = json.loads(resp_body)
                         if 'error' in gemini_resp:

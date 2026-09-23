@@ -47,20 +47,6 @@ exports.handler = async (event) => {
 
   // Put responsive models first. gemini-3.5-flash is currently fast and active.
   const models = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.5-flash-lite'];
-  const geminiPayload = {
-    contents: [{
-      role: "user",
-      parts: [
-        { inline_data: { mime_type: mimeType, data: image } },
-        { text: prompt }
-      ]
-    }],
-    generationConfig: {
-      thinkingConfig: {
-        thinkingBudget: 0
-      }
-    }
-  };
 
   let lastError = null;
 
@@ -68,6 +54,25 @@ exports.handler = async (event) => {
     try {
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       console.log(`[OCR Serverless] Calling model: ${model}`);
+
+      // gemini-3.5-flash supports thinkingConfig (budget 0 = 3s response); lite models do not accept thinkingConfig
+      const payload = {
+        contents: [{
+          role: "user",
+          parts: [
+            { inline_data: { mime_type: mimeType, data: image } },
+            { text: prompt }
+          ]
+        }]
+      };
+
+      if (model === 'gemini-3.5-flash') {
+        payload.generationConfig = {
+          thinkingConfig: {
+            thinkingBudget: 0
+          }
+        };
+      }
 
       // Abort each request after 9s to ensure response completes within Netlify's 10s execution limit
       const controller = new AbortController();
@@ -78,7 +83,7 @@ exports.handler = async (event) => {
         resp = await fetch(geminiUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(geminiPayload),
+          body: JSON.stringify(payload),
           signal: controller.signal
         });
       } finally {
