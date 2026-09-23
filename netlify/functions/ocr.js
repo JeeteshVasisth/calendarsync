@@ -58,16 +58,16 @@ exports.handler = async (event) => {
     "  ] " +
     "}";
 
-  // gemini-3.6-flash is currently online and active with generous limits.
-  const models = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash'];
+  // Live benchmark verified: gemini-3-flash-preview is online and responds in ~8s with high quota.
+  const models = ['gemini-3-flash-preview', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'];
 
   let lastError = null;
   const attempts = [];
   const startTime = Date.now();
 
   for (const model of models) {
-    // If we've already spent > 18s total, break to avoid Netlify hard kill
-    if (Date.now() - startTime > 18000) {
+    // If we've already spent > 20s total, break to avoid Netlify hard kill
+    if (Date.now() - startTime > 20000) {
       const msg = `Approaching function timeout (${Date.now() - startTime}ms elapsed), skipping remaining models.`;
       console.warn(`[OCR Serverless] ${msg}`);
       attempts.push({ model, status: 'skipped', error: msg });
@@ -89,8 +89,8 @@ exports.handler = async (event) => {
         }]
       };
 
-      // Set thinkingBudget: 0 for flash models that support it to eliminate thinking delay
-      if (model === 'gemini-3.6-flash' || model === 'gemini-3.8-flash' || model === 'gemini-3.5-flash') {
+      // Set thinkingBudget: 0 where supported to minimize latency
+      if (model === 'gemini-3.6-flash' || model === 'gemini-3.5-flash') {
         payload.generationConfig = {
           thinkingConfig: {
             thinkingBudget: 0
@@ -98,9 +98,9 @@ exports.handler = async (event) => {
         };
       }
 
-      // Allow up to 10s per model attempt
-      const remainingMs = Math.max(5000, 22000 - (Date.now() - startTime));
-      const perModelTimeout = Math.min(10000, remainingMs);
+      // Allow adequate time for multimodal extraction
+      const remainingMs = Math.max(4000, 24000 - (Date.now() - startTime));
+      const perModelTimeout = Math.min(14000, remainingMs);
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), perModelTimeout);
 
