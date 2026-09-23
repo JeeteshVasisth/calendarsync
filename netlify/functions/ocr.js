@@ -87,9 +87,9 @@ exports.handler = async (event) => {
         };
       }
 
-      // Abort each request after 9s to ensure response completes within Netlify's 10s execution limit
+      // Abort each request after 24s to ensure response completes within Netlify's 26s execution limit
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 9000);
+      const timeoutId = setTimeout(() => controller.abort(), 24000);
 
       let resp;
       try {

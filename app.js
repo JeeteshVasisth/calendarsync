@@ -433,18 +433,51 @@ function handleGoogleCalendarSyncAction() {
   triggerGoogleAuth();
 }
 
+// Helper: Compress/optimize image to JPEG with max 1600px width/height for fast Gemini OCR
+function optimizeImageForOCR(file, callback) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxDim = 1600;
+      let width = img.width;
+      let height = img.height;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      // Fill white background in case of transparent PNG
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+      callback(optimizedDataUrl);
+    };
+    img.onerror = () => callback(e.target.result);
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 // Handle Image File Upload
 function handleImageFile(file) {
   if (!file.type.match('image.*')) {
     alert('Please upload an image file (PNG, JPG, WebP).');
     return;
   }
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    state.currentImageSrc = e.target.result;
+  optimizeImageForOCR(file, (optimizedSrc) => {
+    state.currentImageSrc = optimizedSrc;
     processImage(state.currentImageSrc);
-  };
-  reader.readAsDataURL(file);
+  });
 }
 
 
