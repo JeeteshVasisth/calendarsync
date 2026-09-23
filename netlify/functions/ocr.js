@@ -62,15 +62,19 @@ exports.handler = async (event) => {
   const models = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash'];
 
   let lastError = null;
+  const attempts = [];
   const startTime = Date.now();
 
   for (const model of models) {
     // If we've already spent > 18s total, break to avoid Netlify 26s hard kill
     if (Date.now() - startTime > 18000) {
-      console.warn(`[OCR Serverless] Approaching function timeout (${Date.now() - startTime}ms elapsed), skipping remaining models.`);
+      const msg = `Approaching function timeout (${Date.now() - startTime}ms elapsed), skipping remaining models.`;
+      console.warn(`[OCR Serverless] ${msg}`);
+      attempts.push({ model, status: 'skipped', error: msg });
       break;
     }
 
+    const modelStartTime = Date.now();
     try {
       const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       console.log(`[OCR Serverless] Calling model: ${model}`);
@@ -129,15 +133,19 @@ exports.handler = async (event) => {
       text = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
 
       const result = JSON.parse(text);
-      console.log(`[OCR Serverless] Successfully parsed timetable using ${model}`);
+      const elapsedMs = Date.now() - modelStartTime;
+      console.log(`[OCR Serverless] Successfully parsed timetable using ${model} in ${elapsedMs}ms`);
+      attempts.push({ model, status: 'success', elapsedMs });
 
       return {
         statusCode: 200,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "ok", result, modelUsed: model })
+        body: JSON.stringify({ status: "ok", result, modelUsed: model, attempts })
       };
     } catch (err) {
-      console.warn(`[OCR Serverless] Fallback from ${model}:`, err.message);
+      const elapsedMs = Date.now() - modelStartTime;
+      console.warn(`[OCR Serverless] Fallback from ${model} after ${elapsedMs}ms:`, err.message);
+      attempts.push({ model, status: 'error', error: err.message, elapsedMs });
       lastError = err;
       // Continue to next model in the fallback array
     }
@@ -147,6 +155,10 @@ exports.handler = async (event) => {
   return {
     statusCode: 500,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status: "error", message: lastError ? lastError.message : "OCR failed on all models" })
+    body: JSON.stringify({
+      status: "error",
+      message: lastError ? lastError.message : "OCR failed on all models",
+      attempts
+    })
   };
 };

@@ -685,6 +685,20 @@ async function processImage(imageSrc) {
     }
 
     console.log('[OCR] Gemini response received:', data);
+    if (data.attempts && Array.isArray(data.attempts)) {
+      console.groupCollapsed(`[OCR Model Telemetry] ${data.attempts.length} model attempts`);
+      data.attempts.forEach((att, idx) => {
+        if (att.status === 'success') {
+          console.log(`%c[Attempt ${idx + 1}] SUCCESS: ${att.model} (${att.elapsedMs}ms)`, 'color: #10b981; font-weight: bold;');
+        } else if (att.status === 'skipped') {
+          console.log(`%c[Attempt ${idx + 1}] SKIPPED: ${att.model} - ${att.error}`, 'color: #f59e0b;');
+        } else {
+          console.warn(`[Attempt ${idx + 1}] FAILED: ${att.model} (${att.elapsedMs}ms) -> Error: ${att.error}`);
+        }
+      });
+      console.groupEnd();
+    }
+
     if (!resp.ok || data.status !== 'ok' || !data.result) {
       throw new Error(data.message || 'OCR extraction failed');
     }
